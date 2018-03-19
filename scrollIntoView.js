@@ -2,6 +2,11 @@ var COMPLETE = 'complete',
     CANCELED = 'canceled';
 
 function raf(task){
+    var pageYOffset = window.pageYOffset || window.scrollY
+    var pageXOffset = window.pageXOffset || window.scrollX
+
+    task = task.bind(null, pageYOffset, pageXOffset)
+
     if('requestAnimationFrame' in window){
         return window.requestAnimationFrame(task);
     }
@@ -18,7 +23,7 @@ function setElementScroll(element, x, y){
     }
 }
 
-function getTargetScrollLocation(target, parent, align){
+function getTargetScrollLocation(pageYOffset, pageXOffset, target, parent, align){
     var targetPosition = target.getBoundingClientRect(),
         parentPosition,
         x,
@@ -37,12 +42,12 @@ function getTargetScrollLocation(target, parent, align){
     if(parent.self === parent){
         targetWidth = Math.min(targetPosition.width, parent.innerWidth);
         targetHeight = Math.min(targetPosition.height, parent.innerHeight);
-        x = targetPosition.left + parent.pageXOffset - parent.innerWidth * leftScalar + targetWidth * leftScalar;
-        y = targetPosition.top + parent.pageYOffset - parent.innerHeight * topScalar + targetHeight * topScalar;
+        x = targetPosition.left + pageXOffset - parent.innerWidth * leftScalar + targetWidth * leftScalar;
+        y = targetPosition.top + pageYOffset - parent.innerHeight * topScalar + targetHeight * topScalar;
         x -= leftOffset;
         y -= topOffset;
-        differenceX = x - parent.pageXOffset;
-        differenceY = y - parent.pageYOffset;
+        differenceX = x - pageXOffset;
+        differenceY = y - pageYOffset;
     }else{
         targetWidth = targetPosition.width;
         targetHeight = targetPosition.height;
@@ -68,31 +73,33 @@ function getTargetScrollLocation(target, parent, align){
 }
 
 function animate(parent){
-    var scrollSettings = parent._scrollSettings;
-    if(!scrollSettings){
-        return;
-    }
+    raf(function(pageYOffset, pageXOffset){
+        var scrollSettings = parent._scrollSettings;
+        if(!scrollSettings){
+            return;
+        }
 
-    var location = getTargetScrollLocation(scrollSettings.target, parent, scrollSettings.align),
-        time = Date.now() - scrollSettings.startTime,
-        timeValue = Math.min(1 / scrollSettings.time * time, 1);
+        var location = getTargetScrollLocation(pageYOffset, pageXOffset, scrollSettings.target, parent, scrollSettings.align),
+            time = Date.now() - scrollSettings.startTime,
+            timeValue = Math.min(1 / scrollSettings.time * time, 1);
 
-    if(
-        time > scrollSettings.time * 1.01
-    ){
-        setElementScroll(parent, location.x, location.y);
-        parent._scrollSettings = null;
-        return scrollSettings.end(COMPLETE);
-    }
+        if(
+            time > scrollSettings.time + 20
+        ){
+            setElementScroll(parent, location.x, location.y);
+            parent._scrollSettings = null;
+            return scrollSettings.end(COMPLETE);
+        }
 
-    var easeValue = 1 - scrollSettings.ease(timeValue);
+        var easeValue = 1 - scrollSettings.ease(timeValue);
 
-    setElementScroll(parent,
-        location.x - location.differenceX * easeValue,
-        location.y - location.differenceY * easeValue
-    );
+        setElementScroll(parent,
+            location.x - location.differenceX * easeValue,
+            location.y - location.differenceY * easeValue
+        );
 
-    raf(animate.bind(null, parent));
+        animate(parent);
+    });
 }
 function transitionScrollTo(target, parent, settings, callback){
     var idle = !parent._scrollSettings,
